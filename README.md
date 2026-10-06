@@ -159,7 +159,7 @@ For the original MATLAB implementation and broader data release, see [Modeling-M
 ## Subject-stack input audit
 
 The subject workflow currently validates MATLAB stacks and participant exclusions.
-Prediction and Figure 6 reproduction are not implemented yet.
+A corrected group-trained prediction baseline is also available below. Exact MATLAB Figure 6 reproduction remains unverified.
 
 Keep your local subject files under `data/subjects/` (ignored by Git).
 Copy `examples/subject_manifest.example.json` to `data/subjects/manifest.json`
@@ -179,3 +179,44 @@ checks alone cannot prove that node order agrees. Zeros are counted, not automat
 classified as missing. MATLAB v7.3 stacks require conversion or a future HDF5 adapter.
 For arbitrary scan naming, provide an explicit `participant_ids` list in each batch.
 The default parser supports this project's `sub-22` / `sub-22r` convention.
+
+## Subject generalizability baseline
+
+Extract `subject-data.zip` under `data/subjects/` so its `subject-data/` folder
+contains `mwc/` and `parcellations/`. Copy one of the `examples/mwc-*.json`
+files into that `subject-data/` folder.
+
+```bash
+cp examples/mwc-MTsat-tm.json data/subjects/subject-data/
+python -m myelinfccoupling.generalizability \
+  --manifest data/subjects/subject-data/mwc-MTsat-tm.json \
+  --lut data/subjects/subject-data/parcellations/lut/lut_schaefer-400_mics.csv \
+  --out out/generalizability/MTsat --permutations 1000
+```
+
+For R1 or g-ratio, use the corresponding example manifest and a different
+output folder. All manifests select one myelin metric alongside caliber and length.
+Use `--permutations 0` for a fast run without the permutation reference.
+
+The model fits group-average edges separately within Yeo-7 network pairs,
+with caliber, myelin, length, caliber × myelin and myelin × length. It excludes
+every main-stack session of the held-out person, then predicts each holdout scan.
+Structural group averages ignore zero entries. FC averages retain zero correlations.
+Predictor scaling uses the training group's network-pair mean and sample SD;
+FC stays in its supplied units. Each undirected edge is used once, without the diagonal.
+Training structure defines edge availability; test FC never selects prediction edges.
+Rank-deficient blocks and blocks with fewer than ten residual degrees of freedom are skipped.
+
+Outputs include per-scan/network metrics, edge predictions, training FC templates,
+coefficients, fitted scaling, model status, fold exclusions, input SHA-256 digests
+and run settings. Individual-deviation correlation compares predicted minus
+training-mean FC with empirical minus training-mean FC. `own_percentile` and
+`own_minus_other` describe matching against training participants; they are
+not independently validated identification accuracy or specificity p-values.
+The within-network edge permutations are a conditional reference and do not
+fully preserve spatial or shared-node dependence.
+
+This baseline intentionally differs from the original MATLAB script: it does
+not automatically log-transform skewed stacks, does not z-score test FC, and
+uses training-fitted predictor scaling and fold-specific masks. It therefore
+must not be described as exact replication of Figure 6.
