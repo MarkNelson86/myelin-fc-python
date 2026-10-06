@@ -8,3 +8,6 @@ build/
 dist/
 out/
 .DS_Store
+
+# Local participant data and manifests
+data/subjects/

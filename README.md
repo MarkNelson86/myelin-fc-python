@@ -155,3 +155,27 @@ python -m pytest -q
 Tests check saved reference results from the original Python implementation, recovery of known synthetic coefficients, grouping, input validation, missing-data handling, and CLI output creation. The supplied reference CSVs live in `tests/fixtures/`.
 
 For the original MATLAB implementation and broader data release, see [Modeling-Myelin-FC](https://github.com/TardifLab/Modeling-Myelin-FC). This package runs from CSV without MATLAB. Population-standardized Python coefficients can differ from MATLAB's sample-standardized coefficients, particularly intercepts and interactions. Code is distributed under GPL-3.0; see `LICENSE`.
+
+## Subject-stack input audit
+
+The subject workflow currently validates MATLAB stacks and participant exclusions.
+Prediction and Figure 6 reproduction are not implemented yet.
+
+Keep your local subject files under `data/subjects/` (ignored by Git).
+Copy `examples/subject_manifest.example.json` to `data/subjects/manifest.json`
+and edit the file paths and MATLAB variable keys to match your data.
+Paths in the manifest are relative to the manifest itself. The example uses
+`main/` and `holdout/` subfolders, with each feature stored as `Dts`
+(nodes × nodes × scans), and subject-list files containing `Ss` and `Ss_ho`.
+
+```bash
+python -m myelinfccoupling.subjects --manifest data/subjects/manifest.json --out out/subject_audit
+```
+
+Outputs are `subject_audit.csv` (nonfinite and zero edge counts per scan)
+and `fold_exclusions.csv` (which main-stack sessions each held-out person excludes).
+Anatomical edge ordering still requires the original parcel labels; shape and symmetry
+checks alone cannot prove that node order agrees. Zeros are counted, not automatically
+classified as missing. MATLAB v7.3 stacks require conversion or a future HDF5 adapter.
+For arbitrary scan naming, provide an explicit `participant_ids` list in each batch.
+The default parser supports this project's `sub-22` / `sub-22r` convention.

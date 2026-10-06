@@ -1,0 +1,48 @@
+{
+  "batches": {
+    "main": {
+      "ids": {
+        "path": "main/subjects.mat",
+        "key": "Ss"
+      },
+      "caliber": {
+        "path": "main/COMMITscl.mat",
+        "key": "Dts"
+      },
+      "myelin": {
+        "path": "main/MTsat-tm.mat",
+        "key": "Dts"
+      },
+      "length": {
+        "path": "main/COMMITsclLoS.mat",
+        "key": "Dts"
+      },
+      "FC": {
+        "path": "main/FC.mat",
+        "key": "Dts"
+      }
+    },
+    "holdout": {
+      "ids": {
+        "path": "holdout/subjects.mat",
+        "key": "Ss_ho"
+      },
+      "caliber": {
+        "path": "holdout/COMMITscl.mat",
+        "key": "Dts"
+      },
+      "myelin": {
+        "path": "holdout/MTsat-tm.mat",
+        "key": "Dts"
+      },
+      "length": {
+        "path": "holdout/COMMITsclLoS.mat",
+        "key": "Dts"
+      },
+      "FC": {
+        "path": "holdout/FC.mat",
+        "key": "Dts"
+      }
+    }
+  }
+}
