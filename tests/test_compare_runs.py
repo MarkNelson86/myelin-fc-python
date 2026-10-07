@@ -26,3 +26,11 @@ def test_comparison_rejects_mismatched_targets_and_duplicate_keys(tmp_path):
     with pytest.raises(ValueError,match='differs'):compare({'A':a,'B':b},tmp_path/'out')
     pd.concat([frame,frame.iloc[:1]]).to_csv(b,index=False)
     with pytest.raises(ValueError,match='duplicate'):compare({'A':a,'B':b},tmp_path/'out')
+
+
+def test_comparison_accepts_boosting_predictions(tmp_path):
+    frame,a,b=fixture(tmp_path)
+    frame=frame.drop(columns=['OLS']).rename(columns={'Ridge':'Boosting'})
+    frame.to_csv(b,index=False)
+    summary=compare({'linear':a,'trees':b},tmp_path/'compare')
+    assert summary.loc['trees / Boosting','R2_vs_template']==1

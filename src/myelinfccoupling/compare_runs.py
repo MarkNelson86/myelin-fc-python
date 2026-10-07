@@ -1,4 +1,4 @@
-"""Compare saved OLS/Ridge runs on common participant, scan and edge rows."""
+"""Compare saved linear and boosting runs on common participant, scan and edge rows."""
 from pathlib import Path
 import json
 import hashlib
@@ -7,6 +7,7 @@ import pandas as pd
 from .generalizability import correlation
 
 KEYS=['participant_id','scan_id','i','j']
+MODEL_COLUMNS=['OLS','Ridge','Boosting']
 
 
 def compare(runs,out):
@@ -19,10 +20,12 @@ def compare(runs,out):
     frames={};common=None;scan_sets=[];coverage=[]
     for label,path in runs.items():
         frame=pd.read_csv(path)
-        required=KEYS+['empirical','OLS','Ridge','template']
+        columns=[c for c in MODEL_COLUMNS if c in frame]
+        required=KEYS+['empirical','template']
+        if not columns:raise ValueError(f'{label}: no recognized model prediction columns')
         if not set(required).issubset(frame.columns): raise ValueError(f'{label}: missing prediction columns')
         if frame[KEYS].isna().any().any() or frame.duplicated(KEYS).any(): raise ValueError(f'{label}: missing or duplicate edge keys')
-        if not np.isfinite(frame[['empirical','OLS','Ridge','template']].to_numpy()).all(): raise ValueError(f'{label}: nonfinite predictions')
+        if not np.isfinite(frame[['empirical','template',*columns]].to_numpy()).all(): raise ValueError(f'{label}: nonfinite predictions')
         scan_sets.append(set(zip(frame.participant_id,frame.scan_id)))
         frame=frame.set_index(KEYS)
         frames[label]=frame
@@ -43,7 +46,9 @@ def compare(runs,out):
         predictions={'Template':template}
         for label,frame in aligned.items():
             block=frame.loc[ref.index]
-            for model in ['OLS','Ridge']: predictions[f'{label} / {model}']=block[model].to_numpy()
+            for model in MODEL_COLUMNS:
+                if model not in block:continue
+                predictions[f'{label} / {model}']=block[model].to_numpy()
         for label,pred in predictions.items():
             denominator=np.sum((template-y)**2)
             records.append(dict(participant_id=person,scan_id=scan,model=label,n_edges=len(y),

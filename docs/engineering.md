@@ -73,3 +73,28 @@ The deliverable is reusable, reviewable analysis software. Each added experiment
 should demonstrate an engineering or modeling capability and have a defined
 stopping point. Scientific improvement is assessed honestly rather than used
 as a requirement for completing the repository.
+
+## Nonlinear benchmark design
+
+The bounded tree benchmark learns FC departures from a training-only empirical
+FC template using departures from training-only structural edge means. It fits
+one histogram gradient boosting ensemble with three numeric predictors and a
+categorical network-pair feature. The linear benchmark fits separate models per
+network pair, so this experiment changes both model family and parameter sharing.
+Performance differences cannot be attributed solely to nonlinearity.
+
+Sampling caps training rows per participant; fitting weights give each person
+equal total weight and divide that weight among valid sessions. Edge samples are
+deterministic and logged by index hash. Evaluation does not sample test edges.
+Independent sample size remains the number of participants, regardless of how
+many edges are sampled. A small, fixed iteration grid includes a zero-correction
+baseline. Inner validation and outer testing split participants; all references
+are recalculated within the relevant training fold. Estimator early stopping is
+disabled to avoid an automatic split of correlated edge rows. CPU use is limited
+to one thread. These choices favor reproducibility and bounded runtime over an
+expansive tuning search.
+
+Within-cohort MICs validation is exploratory; it does not demonstrate transfer
+from MWC to MICs. No neural network is warranted merely because more edge rows
+are available. A small neural network remains an optional, bounded portfolio
+extension after this benchmark and its documentation are complete.

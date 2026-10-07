@@ -426,3 +426,26 @@ caliber, length and FC. Cohort integration tests use entirely synthetic data.
 Sequential MICs labels identify stack positions rather than original study IDs. Reusing outer
 results to repeatedly select settings turns those results into development
 feedback, so keep the benchmark bounded and report it accordingly.
+
+### Bounded nonlinear benchmark
+
+Run nested participant validation for a residual gradient boosting model:
+
+```bash
+python -m myelinfccoupling.boosting \
+  --manifest data/subjects/data-mics/mics-R1.json \
+  --lut data/subjects/subject-data/parcellations/lut/lut_schaefer-400_mics.csv \
+  --out out/mics/boosting
+python -m myelinfccoupling.compare_runs \
+  --run linear=out/mics/residual/predictions.csv \
+  --run boosting=out/mics/boosting/predictions.csv \
+  --out out/mics/nonlinear-comparison
+```
+
+Defaults evaluate 0, 30 and 60 boosting iterations with five outer and five inner
+participant folds. Zero iterations predicts the training FC template exactly.
+Training uses at most 2,500 rows per participant and one CPU thread; evaluation
+uses all eligible test edges. Outputs include fold assignments, row sampling
+counts and hashes, tuning scores, selected iterations, input hashes and held-out
+predictions. Comparison scores all models on shared edges and checks matching
+empirical FC and templates. Use an empty output directory for each run.
