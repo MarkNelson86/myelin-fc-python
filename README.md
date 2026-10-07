@@ -259,3 +259,38 @@ work. It is not applied in the raw-data Ridge baseline. Exact MATLAB runtime
 agreement and full historical Figure 6 reproduction remain unverified. The
 positive-real log translation uses an omit-NaN minimum for shifting; negative
 inputs are rejected rather than producing MATLAB complex values.
+
+## Training on subject-level SC–FC pairs
+
+Version 0.5 adds `--training-mode subject` to the Ridge comparison. Within each
+network pair it pools rows from each training subject's own caliber, myelin,
+length and FC, with the same two interaction terms. Each participant receives
+equal total weight per network pair; multiple valid sessions share that weight.
+Weighted means and population standard deviations are fitted on training rows.
+Weights are rescaled to sum to the row count, so the Ridge objective is weighted
+SSE plus alpha times squared slopes. Alpha values therefore depend on training
+row count and are not directly comparable between group and subject modes.
+
+```bash
+python -m myelinfccoupling.ridge \
+  --manifest data/subjects/subject-data/mwc-MTsat-tm.json \
+  --lut data/subjects/subject-data/parcellations/lut/lut_schaefer-400_mics.csv \
+  --out out/subject-ridge/MTsat \
+  --training-mode subject
+```
+
+Outer participant exclusions and five inner participant folds apply to all
+training, scaling and alpha selection. The FC template remains the raw mean of
+training scans (one retained scan per participant in the current MWC main
+stack). Held-out FC is used only for evaluation. Subjects with more edges do
+not gain more total fitting weight. Edges from the same person are dependent;
+pooled rows do not increase the number of independent participants.
+
+Both modes evaluate OLS, Ridge and Template on identical eligible edges within
+a run. Subject pooling may make a network pair estimable that group training
+skipped; compare modes using common `(participant_id, scan_id, i, j)` rows from
+`predictions.csv`, rather than assuming their evaluation edge sets are equal.
+A subject-trained model still learns shared coefficients across subjects; it
+is not a separately fitted model for the held-out person. This phase tests
+whether retaining subject variation in training improves prediction. Results
+remain exploratory because the holdout outcomes have already been inspected.

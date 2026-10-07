@@ -1,4 +1,4 @@
-"""Nested participant-fold comparison of group-trained OLS and Ridge."""
+"""Nested participant-fold comparison of group or subject-trained OLS and Ridge."""
 from pathlib import Path
 import json
 import hashlib
@@ -14,20 +14,37 @@ DEFAULT_ALPHAS=np.logspace(-4,6,11)
 class Block:
     """Scale training main effects and all five terms; intercept is unpenalized.
 
+    Optional positive row weights also determine training scaling and centering.
+
     Cached sufficient statistics solve sklearn Ridge's sum-of-squares objective.
     No estimator or scaler is reused across participant folds.
     """
-    def __init__(self,x,y):
-        self.mu=x.mean(0);self.sd=x.std(0,ddof=1)
+    def __init__(self,x,y,weights=None):
+        if weights is None:
+            self.mu=x.mean(0);self.sd=x.std(0,ddof=1)
+        else:
+            weights=np.asarray(weights,dtype=float)
+            if weights.shape!=(len(y),) or not np.isfinite(weights).all() or np.any(weights<=0):
+                raise ValueError('invalid weights')
+            weights=weights*len(y)/weights.sum()
+            self.mu=np.average(x,axis=0,weights=weights)
+            self.sd=np.sqrt(np.average((x-self.mu)**2,axis=0,weights=weights))
         if np.any(self.sd==0): raise ValueError('constant predictor')
         terms=design((x-self.mu)/self.sd)[:,1:]
-        self.tm=terms.mean(0);self.ts=terms.std(0,ddof=1)
+        if weights is None:
+            self.tm=terms.mean(0);self.ts=terms.std(0,ddof=1)
+        else:
+            self.tm=np.average(terms,axis=0,weights=weights)
+            self.ts=np.sqrt(np.average((terms-self.tm)**2,axis=0,weights=weights))
         if np.any(self.ts==0): raise ValueError('constant term')
         d=(terms-self.tm)/self.ts
         if np.linalg.matrix_rank(d)!=5 or len(y)-6<10:
             raise ValueError('insufficient or rank deficient')
-        self.ym=y.mean(); self.gram=d.T@d;self.rhs=d.T@(y-self.ym)
-        self.beta_ols=np.linalg.lstsq(d,y-self.ym,rcond=None)[0]
+        self.ym=y.mean() if weights is None else np.average(y,weights=weights)
+        root=np.ones(len(y)) if weights is None else np.sqrt(weights)
+        dw=d*root[:,None];yw=(y-self.ym)*root
+        self.gram=dw.T@dw;self.rhs=dw.T@yw
+        self.beta_ols=np.linalg.lstsq(dw,yw,rcond=None)[0]
 
     def transform(self,x):
         return (design((x-self.mu)/self.sd)[:,1:]-self.tm)/self.ts
@@ -50,6 +67,40 @@ def fit_groups(x,y,keep,pairs):
     return models,valid,yg
 
 
+def fit_subjects(x,y,keep,pairs,people):
+    """Pool participant-edge rows; equal total participant weight per block.
+
+    Each person's sessions share their weight equally among sessions with valid
+    rows in that block. Weights sum to row count, preserving Ridge's SSE scale.
+    The training FC template is still the raw training-scan mean.
+    """
+    xg=nonzero_mean(x[:,:,keep]);template=y[:,keep].mean(1)
+    trainmask=np.isfinite(xg).all(1)&np.isfinite(template)
+    models={}
+    complete={idx: np.isfinite(x[:,:,idx]).all(1)&(x[:,:,idx]!=0).all(1)&np.isfinite(y[:,idx]) for idx in keep}
+    for pair in np.unique(pairs):
+        pairmask=trainmask&(pairs==pair)
+        rows=[];targets=[];identities=[]
+        for idx in keep:
+            valid=pairmask&complete[idx]
+            if valid.any():
+                rows.append(x[valid,:,idx]);targets.append(y[valid,idx]);identities.append(people[idx])
+        if not rows:
+            models[pair]=None
+            continue
+        counts={p:identities.count(p) for p in set(identities)}
+        weights=np.concatenate([np.full(len(r),1/(counts[p]*len(r))) for r,p in zip(rows,identities)])
+        try: models[pair]=Block(np.concatenate(rows),np.concatenate(targets),weights)
+        except ValueError: models[pair]=None
+    return models,trainmask,template
+
+
+def fit_training(x,y,keep,pairs,people,training_mode):
+    if training_mode=='group': return fit_groups(x,y,keep,pairs)
+    if training_mode=='subject': return fit_subjects(x,y,keep,pairs,people)
+    raise ValueError('training_mode must be group or subject')
+
+
 def predict_all(models,trainmask,x,pairs,alpha):
     pred=np.full(len(x),np.nan)
     valid=trainmask&np.isfinite(x).all(1)&(x!=0).all(1)
@@ -60,7 +111,7 @@ def predict_all(models,trainmask,x,pairs,alpha):
     return pred
 
 
-def choose_alpha(x,y,people,keep,pairs,alphas,n_inner,seed):
+def choose_alpha(x,y,people,keep,pairs,alphas,n_inner,seed,training_mode="group"):
     # Splitting unique identities permits multiple sessions without leakage.
     unique=np.array(sorted(set(people[k] for k in keep)))
     if len(unique)<n_inner: raise ValueError('Too few participants for inner folds')
@@ -68,7 +119,7 @@ def choose_alpha(x,y,people,keep,pairs,alphas,n_inner,seed):
     for fold,(itr,ival) in enumerate(KFold(n_inner,shuffle=True,random_state=seed).split(unique)):
         train=keep[np.isin(people[keep],unique[itr])]
         val=keep[np.isin(people[keep],unique[ival])]
-        models,mask,_=fit_groups(x,y,train,pairs)
+        models,mask,_=fit_training(x,y,train,pairs,people,training_mode)
         for idx in train: assignments.append(dict(inner_fold=fold,scan_index=int(idx),participant_id=people[idx],role='train'))
         for idx in val: assignments.append(dict(inner_fold=fold,scan_index=int(idx),participant_id=people[idx],role='validation'))
         for alpha in alphas:
@@ -87,7 +138,8 @@ def choose_alpha(x,y,people,keep,pairs,alphas,n_inner,seed):
     return float(mean.idxmin()),scores,assignments,mean.to_dict()
 
 
-def run(manifest,lut,out,alphas=DEFAULT_ALPHAS,n_inner=5,seed=20261006):
+def run(manifest,lut,out,alphas=DEFAULT_ALPHAS,n_inner=5,seed=20261006,training_mode="group"):
+    if training_mode not in {"group","subject"}: raise ValueError("Unknown training mode")
     alphas=np.asarray(alphas,dtype=float)
     if alphas.ndim!=1 or not len(alphas) or not np.isfinite(alphas).all() or np.any(alphas<=0):
         raise ValueError('Provide a nonempty list of finite positive Ridge alphas')
@@ -102,13 +154,14 @@ def run(manifest,lut,out,alphas=DEFAULT_ALPHAS,n_inner=5,seed=20261006):
     people=np.array(main['participant_ids'])
     rows=[];all_scores=[];folds=[];chosen=[];predictions=[];coeff=[];status=[];scalers=[]
     for person in dict.fromkeys(hold['participant_ids']):
+        print(f'Outer fold {person}: {training_mode} training and inner alpha selection',flush=True)
         keep=training_indices(main,person)
-        alpha,scores,assignments,means=choose_alpha(mx,my,people,keep,pairs,alphas,n_inner,seed)
+        alpha,scores,assignments,means=choose_alpha(mx,my,people,keep,pairs,alphas,n_inner,seed,training_mode)
         scores['outer_participant']=person;all_scores.append(scores)
         for rec in assignments: folds.append(dict(outer_participant=person,**rec))
         chosen.append(dict(participant_id=person,alpha=alpha,n_training=len(set(people[keep])),
                            excluded_scans=';'.join(s for s,p in zip(main['scan_ids'],people) if p==person)))
-        models,mask,template=fit_groups(mx,my,keep,pairs)
+        models,mask,template=fit_training(mx,my,keep,pairs,people,training_mode)
         for pair,m in models.items():
             status.append(dict(participant_id=person,network_pair=pair,status='ok' if m else 'skipped'))
             if m:
@@ -140,7 +193,7 @@ def run(manifest,lut,out,alphas=DEFAULT_ALPHAS,n_inner=5,seed=20261006):
     spec=json.loads(Path(manifest).read_text());files={Path(manifest).resolve(),Path(lut).resolve()}
     for batch in spec['batches'].values():files.update((Path(manifest).parent/batch[key]['path']).resolve() for key in ['ids',*features,'FC'])
     (out/'input_sha256.json').write_text(json.dumps({str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(files)},indent=2))
-    (out/'run_config.json').write_text(json.dumps(dict(seed=seed,alphas=alphas.tolist(),inner_folds=n_inner,criterion='mean participant RMSE',training='raw nonzero structural group averages; raw FC',comparison='OLS and Ridge on identical eligible edges',sklearn_objective='sum squared residuals + alpha * squared slopes',historical_replication=False),indent=2))
+    (out/'run_config.json').write_text(json.dumps(dict(seed=seed,alphas=alphas.tolist(),inner_folds=n_inner,criterion='mean participant RMSE',training=('raw nonzero structural group averages; raw FC' if training_mode=='group' else 'participant-edge rows; raw FC; equal participant weight per network pair'),training_mode=training_mode,weight_normalization=('none' if training_mode=='group' else 'sum weights equals number of training rows per block'),comparison='OLS and Ridge on identical eligible edges',sklearn_objective='sum squared residuals + alpha * squared slopes',historical_replication=False),indent=2))
     return pd.DataFrame(rows)
 
 
@@ -150,7 +203,8 @@ def main():
     p.add_argument('--manifest',required=True);p.add_argument('--lut',required=True);p.add_argument('--out',required=True)
     p.add_argument('--inner-folds',type=int,default=5);p.add_argument('--seed',type=int,default=20261006)
     p.add_argument('--alphas',type=float,nargs='+',default=DEFAULT_ALPHAS.tolist())
-    a=p.parse_args();run(a.manifest,a.lut,a.out,a.alphas,a.inner_folds,a.seed)
+    p.add_argument('--training-mode',choices=['group','subject'],default='group')
+    a=p.parse_args();run(a.manifest,a.lut,a.out,a.alphas,a.inner_folds,a.seed,a.training_mode)
     print(f'Results saved to {a.out}')
 
 if __name__=='__main__':main()
