@@ -2,7 +2,7 @@
 
 A reproducible Python pipeline for predicting functional connectivity from
 structural connectomes. It combines data validation, participant-aware model
-selection, OLS/Ridge comparisons, and auditable CSV outputs. The neuroscience
+selection, linear, tree and neural benchmarks, and auditable CSV outputs. The neuroscience
 case study illustrates predictive modeling with many dependent observations
 and relatively few independent participants.
 
@@ -14,7 +14,7 @@ Python 3.10 or newer; from the repository root:
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -e ".[ml]"
-myelin-fc-demo --out out/demo
+myelin-fc-demo --all-models --out out/demo
 ```
 
 The demo requires no downloads or participant data. It generates 24-node
@@ -33,11 +33,17 @@ Demo metrics illustrate the workflow and carry no scientific interpretation.
 | Reusable Python software | Installable package, CLI commands, modular loaders and models |
 | Data contracts | Explicit file/variable mappings, matrix shape and symmetry checks, identity validation |
 | Leakage control | Every session of a held-out participant excluded; nested participant folds; training-only preprocessing |
-| Model evaluation | Absolute-FC and template-deviation OLS/Ridge; FC template benchmark; matched-edge comparisons |
+| Model evaluation | Absolute-FC and template-deviation OLS/Ridge; FC template benchmark; bounded tree/neural models; matched-edge comparisons |
 | Reproducibility | Deterministic fixture generation, explicit seeds, saved configurations and SHA-256 input hashes |
 | Automated checks | Unit and integration tests; CI configured for Python 3.10 and 3.12 |
 
-See [engineering notes](docs/engineering.md) for design decisions, limitations,
+For the all-model demo, open `out/demo/benchmark/summary.csv`. It runs residual
+OLS/Ridge, gradient boosting and a small neural network with identical cohort
+splits. Its budgets are deliberately smaller than the real-data benchmarks.
+Omit `--all-models` for the original lightweight linear demo.
+
+See [benchmark report](docs/benchmark-report.md) for real-data results and
+[engineering notes](docs/engineering.md) for design decisions, limitations,
 and the portfolio development roadmap. The group-regression workflow and
 subject-data analyses are documented below. Private participant data belongs
 in the ignored `data/subjects/` directory; generated runs belong in `out/`.
@@ -449,3 +455,22 @@ uses all eligible test edges. Outputs include fold assignments, row sampling
 counts and hashes, tuning scores, selected iterations, input hashes and held-out
 predictions. Comparison scores all models on shared edges and checks matching
 empirical FC and templates. Use an empty output directory for each run.
+
+### Small neural network
+
+```bash
+python -m myelinfccoupling.neural \
+  --manifest data/subjects/data-mics/mics-R1.json \
+  --lut data/subjects/subject-data/parcellations/lut/lut_schaefer-400_mics.csv \
+  --out out/mics/neural
+```
+
+This is a scikit-learn MLP with one 16-unit tanh layer, Adam, training-only
+weighted feature/target scaling and one-hot network pair. Defaults test 0, 10
+and 30 epochs, with at most 1,000 fitting rows per person. Epoch 0 predicts the
+FC template. Selected budgets appear in `selected_epochs.csv`; nonzero selected
+outer models export numeric weights and scaling in `neural_fold_*.npz`.
+Install the updated ML extra: scikit-learn >=1.7 is required for sample weights.
+No GPU, PyTorch or TensorFlow is needed. Fixed epoch budgets are intentionally
+small and do not claim optimizer convergence. See the benchmark report for
+comparison limits and the observed result.

@@ -7,7 +7,7 @@ import pandas as pd
 from .generalizability import correlation
 
 KEYS=['participant_id','scan_id','i','j']
-MODEL_COLUMNS=['OLS','Ridge','Boosting']
+MODEL_COLUMNS=['OLS','Ridge','Boosting','NeuralNetwork']
 
 
 def compare(runs,out):

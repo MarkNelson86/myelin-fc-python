@@ -58,16 +58,16 @@ scan mean. The current MWC main stack has one retained scan per participant.
 
 ## Portfolio roadmap
 
-Completed: group and subject OLS/Ridge; nested participant folds; synthetic
-end-to-end demo; provenance outputs; automated tests and CI configuration.
+Completed: validated loaders, group and subject OLS/Ridge, residual models,
+MWC three-metric comparisons, MICs nested participant evaluation, bounded
+boosting and a small neural network. The synthetic public demo exercises all
+model families. Configurations, input hashes, folds and sampling hashes support
+review and reproduction. Benchmark results and limitations are consolidated in
+[the report](benchmark-report.md).
 
-Completed extension: template-deviation OLS/Ridge and matched-edge comparisons
-for MWC tract-specific g-ratio, MTsat and R1. Next: adapt the same data contract
-to MICs using shared R1. The single-cohort nested participant workflow is
-implemented and tested on synthetic data, then run on 45 aligned MICs
-participants using a fixed R1 benchmark and explicit position IDs.
-Then add one gradient-boosting benchmark under the same participant splits. A small
-neural network and Paper 3 communication features are later extensions.
+Next work should prioritize repository review, a clean public release and a
+brief employer-facing walkthrough. Paper 3 communication features remain a
+separate optional project rather than an unfinished prerequisite.
 
 The deliverable is reusable, reviewable analysis software. Each added experiment
 should demonstrate an engineering or modeling capability and have a defined
@@ -96,5 +96,7 @@ expansive tuning search.
 
 Within-cohort MICs validation is exploratory; it does not demonstrate transfer
 from MWC to MICs. No neural network is warranted merely because more edge rows
-are available. A small neural network remains an optional, bounded portfolio
-extension after this benchmark and its documentation are complete.
+are available. The small neural benchmark uses the same shared participant protocol with
+weighted scaling, one-hot network pair and fixed epoch candidates. Its smaller
+row cap and different architecture mean it is an alternative bounded pipeline;
+the comparison does not isolate architecture from fitting budget.

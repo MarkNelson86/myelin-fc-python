@@ -19,7 +19,7 @@ def test_synthetic_inputs_are_deterministic_and_include_rescans(tmp_path):
 
 
 def test_demo_runs_pipeline_and_protects_existing_outputs(tmp_path):
-    out=tmp_path/'demo';summary=run_demo(out,seed=42)
+    out=tmp_path/'demo';summary=run_demo(out,seed=42,all_models=True)
     assert set(summary.index)=={'OLS','Ridge','Template'}
     assert np.isfinite(summary[['rmse','r']]).all().all()
     folds=pd.read_csv(out/'models/fold_assignments.csv')
@@ -29,4 +29,7 @@ def test_demo_runs_pipeline_and_protects_existing_outputs(tmp_path):
     chosen=pd.read_csv(out/'models/selected_alpha.csv')
     assert (chosen.n_training==9).all()
     assert (out/'models/input_sha256.json').exists()
+    benchmark=pd.read_csv(out/'benchmark/summary.csv')
+    assert set(benchmark.model)=={'Template','linear / OLS','linear / Ridge','boosting / Boosting','neural / NeuralNetwork'}
+    assert (pd.read_csv(out/'benchmark/edge_coverage.csv').retained_fraction==1).all()
     with pytest.raises(ValueError,match='not empty'):run_demo(out)

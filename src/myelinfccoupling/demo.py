@@ -54,7 +54,7 @@ def make_subject_data(out, seed=42):
     return manifest,lut
 
 
-def run_demo(out,seed=42):
+def run_demo(out,seed=42,all_models=False):
     """Generate inputs, audit identities, run nested subject OLS/Ridge, summarize."""
     from .ridge import run
     out=Path(out)
@@ -81,6 +81,17 @@ def run_demo(out,seed=42):
         'See summary.csv, subject_audit.csv, fold_exclusions.csv and models/ for '
         'metrics, predictions, coefficients, scaling, selected alphas, fold '
         'assignments, input hashes and run configuration.\n')
+    if all_models:
+        from .cohort import run as cohort_run
+        from .boosting import run as boosting_run
+        from .neural import run as neural_run
+        from .compare_runs import compare
+        cohort_run(manifest,lut,out/'cohort-linear',n_outer=3,n_inner=2,seed=seed,alphas=[.01,1,100])
+        boosting_run(manifest,lut,out/'cohort-boosting',n_outer=3,n_inner=2,seed=seed,candidates=[0,10],cap=200)
+        neural_run(manifest,lut,out/'cohort-neural',n_outer=3,n_inner=2,seed=seed,candidates=[0,5],cap=200)
+        compare({name:out/f'cohort-{name}'/'predictions.csv' for name in ['linear','boosting','neural']},out/'benchmark')
+        with (out/'DEMO_REPORT.md').open('a') as stream:
+            stream.write('\nThe optional all-model benchmark uses the ten main-stack people in three outer and two inner participant folds. Its separate benchmark/summary.csv compares residual OLS, Ridge, boosting and a small neural network on common edges. Budgets are smaller than the real-data protocol. Synthetic metrics demonstrate execution only.\n')
     print(summary.to_string())
     print(f'Synthetic demo complete: {out.resolve()}')
     return summary
@@ -90,8 +101,9 @@ def main():
     import argparse
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--out',default='out/demo');p.add_argument('--seed',type=int,default=42)
+    p.add_argument('--all-models',action='store_true',help='Also compare residual linear, tree and neural cohort models')
     args=p.parse_args()
-    try: run_demo(args.out,args.seed)
+    try: run_demo(args.out,args.seed,args.all_models)
     except (ValueError,FileNotFoundError) as exc: p.error(str(exc))
     except ModuleNotFoundError as exc:
         if exc.name=='sklearn':p.error('Install modeling dependencies with: python -m pip install -e ".[ml]"')
