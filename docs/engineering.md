@@ -63,8 +63,10 @@ end-to-end demo; provenance outputs; automated tests and CI configuration.
 
 Completed extension: template-deviation OLS/Ridge and matched-edge comparisons
 for MWC tract-specific g-ratio, MTsat and R1. Next: adapt the same data contract
-to MICs using shared R1;
-add one gradient-boosting benchmark under the same participant splits. A small
+to MICs using shared R1. The single-cohort nested participant workflow is
+implemented and tested on synthetic data, then run on 45 aligned MICs
+participants using a fixed R1 benchmark and explicit position IDs.
+Then add one gradient-boosting benchmark under the same participant splits. A small
 neural network and Paper 3 communication features are later extensions.
 
 The deliverable is reusable, reviewable analysis software. Each added experiment

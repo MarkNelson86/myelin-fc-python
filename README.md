@@ -385,3 +385,44 @@ input hashes. A single template benchmark is included. Inspect coverage:
 intersecting runs with different structural metrics can change the evaluated
 edge population. This tool compares matched cohorts and exclusions; it is not
 a cross-cohort transfer evaluator.
+
+## One-cohort participant cross-validation
+
+Version 0.8 adds `myelinfccoupling.cohort` for a single cohort with no separate
+holdout stack. A manifest containing only a `main` batch is sufficient. Five
+outer folds split unique participants, and five inner participant folds choose
+Ridge alpha using only each outer training set. Every scan is evaluated once;
+all sessions of a participant stay in the same outer fold. Subject and residual
+training modes use the existing weighting and preprocessing implementations.
+
+```bash
+python -m myelinfccoupling.cohort \
+  --manifest data/subjects/subject-data/mics-R1.json \
+  --lut data/subjects/subject-data/parcellations/lut/lut_schaefer-400_mics.csv \
+  --out out/mics/residual \
+  --training-mode residual
+```
+
+`examples/mics-R1.example.json` illustrates the mapping, using placeholder
+filenames/keys that must be checked against actual files. If scan IDs are not
+in the current `sub-NN`/`sub-NNr` format, add an explicit `participant_ids` list
+inside the batch in the same order as the IDs and stack columns. For a cohort
+with one scan per person, each participant ID can be its exact scan ID. For
+repeat scans, all sessions of a person must share the same participant ID.
+
+Outputs include per-scan/network metrics, participant-averaged summary,
+outer and inner fold assignments, selected alpha, coefficients and scaling,
+predictions, audit, fitted residual references, input hashes and configuration.
+Fold and scan indices in these outputs are zero-based. A nonempty output
+directory is rejected. Use `--outer-folds`, `--inner-folds`, `--seed` and
+`--alphas` for a predefined development protocol. Evaluate subject and residual
+modes with identical outer settings, then use `compare_runs` on their saved
+predictions.
+
+This protocol estimates prediction for unseen participants within a cohort.
+Training on MWC and testing on MICs would be a separate external-transfer
+protocol. The fixed protocol has been run on 45 aligned MICs participants with R1,
+caliber, length and FC. Cohort integration tests use entirely synthetic data.
+Sequential MICs labels identify stack positions rather than original study IDs. Reusing outer
+results to repeatedly select settings turns those results into development
+feedback, so keep the benchmark bounded and report it accordingly.
