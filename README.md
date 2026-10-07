@@ -33,7 +33,7 @@ Demo metrics illustrate the workflow and carry no scientific interpretation.
 | Reusable Python software | Installable package, CLI commands, modular loaders and models |
 | Data contracts | Explicit file/variable mappings, matrix shape and symmetry checks, identity validation |
 | Leakage control | Every session of a held-out participant excluded; nested participant folds; training-only preprocessing |
-| Model evaluation | OLS, Ridge and empirical FC template compared on common eligible edges |
+| Model evaluation | Absolute-FC and template-deviation OLS/Ridge; FC template benchmark; matched-edge comparisons |
 | Reproducibility | Deterministic fixture generation, explicit seeds, saved configurations and SHA-256 input hashes |
 | Automated checks | Unit and integration tests; CI configured for Python 3.10 and 3.12 |
 
@@ -334,3 +334,54 @@ A subject-trained model still learns shared coefficients across subjects; it
 is not a separately fitted model for the held-out person. This phase tests
 whether retaining subject variation in training improves prediction. Results
 remain exploratory because the holdout outcomes have already been inspected.
+
+## Predicting departures from the FC template
+
+Version 0.7 adds `--training-mode residual`. Inside each training fold, compute
+an edge-wise FC template and nonzero structural-feature means. Fit each network
+pair to subject SC deviations from those means and FC deviations from the
+template, with the same equal participant fitting weights as subject mode.
+The three main terms are structural deviations; the two interactions are
+products of caliber/myelin deviations and myelin/length deviations.
+
+At prediction time, the held-out person's raw SC is centered using the training
+references. The predicted FC deviation is added to the training FC template.
+A zero structural deviation is valid; a zero raw structural value continues to
+mean an unavailable edge. Test FC is used only in evaluation. All references,
+scaling, model coefficients and alpha choices are rebuilt inside inner folds.
+
+```bash
+python -m myelinfccoupling.ridge \
+  --manifest data/subjects/subject-data/mwc-gratio-ts.json \
+  --lut data/subjects/subject-data/parcellations/lut/lut_schaefer-400_mics.csv \
+  --out out/residual/gratio \
+  --training-mode residual
+```
+
+Residual runs also export `references.csv`: each outer fold's FC template and
+structural means keyed by participant and edge. Predictions include
+`OLS_deviation` and `Ridge_deviation` in addition to final absolute FC.
+`R2_vs_template` is 1 minus model squared error divided by template squared
+error. Positive values indicate improvement over the template; zero matches
+its error; negative values indicate worse error. It differs from conventional
+R² relative to a scalar target mean. Individual-deviation correlation can be
+positive without improving squared error, so inspect both measures.
+
+### Compare modes and feature sets fairly
+
+```bash
+python -m myelinfccoupling.compare_runs \
+  --run direct=out/subject-ridge/MTsat/predictions.csv \
+  --run residual=out/residual/MTsat/predictions.csv \
+  --out out/comparison/MTsat
+```
+
+Provide two or more named runs. Every model is scored on the intersection of
+participant/scan/edge rows across all supplied files. The tool requires matching
+scan sets, empirical FC and training templates, and rejects duplicate edge
+keys. It exports per-scan metrics, metrics averaged within each participant,
+participant-averaged summaries, edge coverage and comparison configuration with
+input hashes. A single template benchmark is included. Inspect coverage:
+intersecting runs with different structural metrics can change the evaluated
+edge population. This tool compares matched cohorts and exclusions; it is not
+a cross-cohort transfer evaluator.

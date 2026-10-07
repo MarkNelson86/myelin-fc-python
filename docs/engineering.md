@@ -43,7 +43,8 @@ records modeling settings. Full dependency/environment locking is future work.
 
 This is research analysis software. The subject evaluation currently uses five
 real held-out participants with paired scans and is exploratory because these
-subjects have already been inspected. Dependent edges and repeated scans are
+subjects have already been inspected. The MWC functional data also have a known
+registration limitation. Dependent edges and repeated scans are
 not independent participants. Exact numerical replication of the original
 MATLAB paper is a separate task; the predictive Python baseline changes
 preprocessing and keeps fitted steps within training folds. MATLAB v7.3 input
@@ -60,8 +61,9 @@ scan mean. The current MWC main stack has one retained scan per participant.
 Completed: group and subject OLS/Ridge; nested participant folds; synthetic
 end-to-end demo; provenance outputs; automated tests and CI configuration.
 
-Next: one bounded residual-prediction experiment with MWC tract-specific
-g-ratio, MTsat and R1; adapt the same data contract to MICs using shared R1;
+Completed extension: template-deviation OLS/Ridge and matched-edge comparisons
+for MWC tract-specific g-ratio, MTsat and R1. Next: adapt the same data contract
+to MICs using shared R1;
 add one gradient-boosting benchmark under the same participant splits. A small
 neural network and Paper 3 communication features are later extensions.
 

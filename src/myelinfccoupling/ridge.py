@@ -1,4 +1,4 @@
-"""Nested participant-fold comparison of group or subject-trained OLS and Ridge."""
+"""Nested participant folds for group, subject and template-deviation models."""
 from pathlib import Path
 import json
 import hashlib
@@ -67,16 +67,25 @@ def fit_groups(x,y,keep,pairs):
     return models,valid,yg
 
 
-def fit_subjects(x,y,keep,pairs,people):
+class ResidualModels(dict):
+    """Network models with edge-wise references fitted only to training scans."""
+    def __init__(self,structural_reference,template):
+        super().__init__()
+        self.structural_reference=structural_reference
+        self.template=template
+
+
+def fit_subjects(x,y,keep,pairs,people,residual=False):
     """Pool participant-edge rows; equal total participant weight per block.
 
     Each person's sessions share their weight equally among sessions with valid
     rows in that block. Weights sum to row count, preserving Ridge's SSE scale.
-    The training FC template is still the raw training-scan mean.
+    The training FC template is still the raw training-scan mean. With residual
+    enabled, fit deviations from training edge means, preserving raw availability.
     """
     xg=nonzero_mean(x[:,:,keep]);template=y[:,keep].mean(1)
     trainmask=np.isfinite(xg).all(1)&np.isfinite(template)
-    models={}
+    models=ResidualModels(xg,template) if residual else {}
     complete={idx: np.isfinite(x[:,:,idx]).all(1)&(x[:,:,idx]!=0).all(1)&np.isfinite(y[:,idx]) for idx in keep}
     for pair in np.unique(pairs):
         pairmask=trainmask&(pairs==pair)
@@ -84,7 +93,9 @@ def fit_subjects(x,y,keep,pairs,people):
         for idx in keep:
             valid=pairmask&complete[idx]
             if valid.any():
-                rows.append(x[valid,:,idx]);targets.append(y[valid,idx]);identities.append(people[idx])
+                rows.append(x[valid,:,idx]-xg[valid] if residual else x[valid,:,idx])
+                targets.append(y[valid,idx]-template[valid] if residual else y[valid,idx])
+                identities.append(people[idx])
         if not rows:
             models[pair]=None
             continue
@@ -98,7 +109,8 @@ def fit_subjects(x,y,keep,pairs,people):
 def fit_training(x,y,keep,pairs,people,training_mode):
     if training_mode=='group': return fit_groups(x,y,keep,pairs)
     if training_mode=='subject': return fit_subjects(x,y,keep,pairs,people)
-    raise ValueError('training_mode must be group or subject')
+    if training_mode=='residual': return fit_subjects(x,y,keep,pairs,people,residual=True)
+    raise ValueError('training_mode must be group, subject or residual')
 
 
 def predict_all(models,trainmask,x,pairs,alpha):
@@ -107,7 +119,11 @@ def predict_all(models,trainmask,x,pairs,alpha):
     for pair,model in models.items():
         if model is not None:
             mask=valid&(pairs==pair)
-            pred[mask]=model.predict(x[mask],alpha)
+            if isinstance(models,ResidualModels):
+                deviation=model.predict(x[mask]-models.structural_reference[mask],alpha)
+                pred[mask]=models.template[mask]+deviation
+            else:
+                pred[mask]=model.predict(x[mask],alpha)
     return pred
 
 
@@ -139,7 +155,7 @@ def choose_alpha(x,y,people,keep,pairs,alphas,n_inner,seed,training_mode="group"
 
 
 def run(manifest,lut,out,alphas=DEFAULT_ALPHAS,n_inner=5,seed=20261006,training_mode="group"):
-    if training_mode not in {"group","subject"}: raise ValueError("Unknown training mode")
+    if training_mode not in {"group","subject","residual"}: raise ValueError("Unknown training mode")
     alphas=np.asarray(alphas,dtype=float)
     if alphas.ndim!=1 or not len(alphas) or not np.isfinite(alphas).all() or np.any(alphas<=0):
         raise ValueError('Provide a nonempty list of finite positive Ridge alphas')
@@ -152,7 +168,7 @@ def run(manifest,lut,out,alphas=DEFAULT_ALPHAS,n_inner=5,seed=20261006,training_
     hx=np.stack([hold['arrays'][f][i,j,:] for f in features],axis=1)
     my=main['arrays']['FC'][i,j,:];hy=hold['arrays']['FC'][i,j,:]
     people=np.array(main['participant_ids'])
-    rows=[];all_scores=[];folds=[];chosen=[];predictions=[];coeff=[];status=[];scalers=[]
+    rows=[];all_scores=[];folds=[];chosen=[];predictions=[];coeff=[];status=[];scalers=[];references=[]
     for person in dict.fromkeys(hold['participant_ids']):
         print(f'Outer fold {person}: {training_mode} training and inner alpha selection',flush=True)
         keep=training_indices(main,person)
@@ -162,6 +178,10 @@ def run(manifest,lut,out,alphas=DEFAULT_ALPHAS,n_inner=5,seed=20261006,training_
         chosen.append(dict(participant_id=person,alpha=alpha,n_training=len(set(people[keep])),
                            excluded_scans=';'.join(s for s,p in zip(main['scan_ids'],people) if p==person)))
         models,mask,template=fit_training(mx,my,keep,pairs,people,training_mode)
+        if isinstance(models,ResidualModels):
+            references.append(pd.DataFrame(dict(participant_id=person,i=i[mask]+1,j=j[mask]+1,
+                template=template[mask],caliber_mean=models.structural_reference[mask,0],
+                myelin_mean=models.structural_reference[mask,1],length_mean=models.structural_reference[mask,2])))
         for pair,m in models.items():
             status.append(dict(participant_id=person,network_pair=pair,status='ok' if m else 'skipped'))
             if m:
@@ -175,7 +195,7 @@ def run(manifest,lut,out,alphas=DEFAULT_ALPHAS,n_inner=5,seed=20261006,training_
             po=predict_all(models,mask,hx[:,:,idx],pairs,0)
             pr=predict_all(models,mask,hx[:,:,idx],pairs,alpha)
             valid=np.isfinite(po)&np.isfinite(pr)&np.isfinite(hy[:,idx])
-            predictions.append(pd.DataFrame(dict(participant_id=person,scan_id=hold['scan_ids'][idx],i=i[valid]+1,j=j[valid]+1,network_pair=pairs[valid],empirical=hy[valid,idx],OLS=po[valid],Ridge=pr[valid],template=template[valid])))
+            predictions.append(pd.DataFrame(dict(participant_id=person,scan_id=hold['scan_ids'][idx],i=i[valid]+1,j=j[valid]+1,network_pair=pairs[valid],empirical=hy[valid,idx],OLS=po[valid],Ridge=pr[valid],template=template[valid],OLS_deviation=po[valid]-template[valid],Ridge_deviation=pr[valid]-template[valid])))
             for group in ['all',*np.unique(pairs)]:
                 use=valid if group=='all' else valid&(pairs==group)
                 y=hy[use,idx];t=template[use]
@@ -185,15 +205,17 @@ def run(manifest,lut,out,alphas=DEFAULT_ALPHAS,n_inner=5,seed=20261006,training_
                                      rmse=np.sqrt(np.mean((pred-y)**2)) if len(y) else np.nan,
                                      mae=np.mean(abs(pred-y)) if len(y) else np.nan,
                                      R2=1-np.sum((pred-y)**2)/ss if ss else np.nan,
+                                     R2_vs_template=(1-np.sum((pred-y)**2)/np.sum((t-y)**2)) if len(y) and np.sum((t-y)**2)>0 else np.nan,
                                      r=correlation(pred,y),r_individual_deviation=correlation(pred-t,y-t)))
     out=Path(out);out.mkdir(parents=True,exist_ok=True)
     for name,data in [('metrics',rows),('selected_alpha',chosen),('fold_assignments',folds),('coefficients',coeff),('model_status',status),('scaling',scalers)]:pd.DataFrame(data).to_csv(out/f'{name}.csv',index=False)
     pd.concat(all_scores,ignore_index=True).to_csv(out/'inner_scores.csv',index=False)
     pd.concat(predictions,ignore_index=True).to_csv(out/'predictions.csv',index=False)
+    if references: pd.concat(references,ignore_index=True).to_csv(out/'references.csv',index=False)
     spec=json.loads(Path(manifest).read_text());files={Path(manifest).resolve(),Path(lut).resolve()}
     for batch in spec['batches'].values():files.update((Path(manifest).parent/batch[key]['path']).resolve() for key in ['ids',*features,'FC'])
     (out/'input_sha256.json').write_text(json.dumps({str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(files)},indent=2))
-    (out/'run_config.json').write_text(json.dumps(dict(seed=seed,alphas=alphas.tolist(),inner_folds=n_inner,criterion='mean participant RMSE',training=('raw nonzero structural group averages; raw FC' if training_mode=='group' else 'participant-edge rows; raw FC; equal participant weight per network pair'),training_mode=training_mode,weight_normalization=('none' if training_mode=='group' else 'sum weights equals number of training rows per block'),comparison='OLS and Ridge on identical eligible edges',sklearn_objective='sum squared residuals + alpha * squared slopes',historical_replication=False),indent=2))
+    (out/'run_config.json').write_text(json.dumps(dict(seed=seed,alphas=alphas.tolist(),inner_folds=n_inner,criterion='mean participant RMSE',training=('raw nonzero structural group averages; raw FC' if training_mode=='group' else ('participant-edge rows; FC and SC deviations from training edge means; equal participant weight per network pair' if training_mode=='residual' else 'participant-edge rows; raw FC; equal participant weight per network pair')),training_mode=training_mode,weight_normalization=('none' if training_mode=='group' else 'sum weights equals number of training rows per block'),comparison='OLS and Ridge on identical eligible edges',sklearn_objective='sum squared residuals + alpha * squared slopes',historical_replication=False),indent=2))
     return pd.DataFrame(rows)
 
 
@@ -203,7 +225,7 @@ def main():
     p.add_argument('--manifest',required=True);p.add_argument('--lut',required=True);p.add_argument('--out',required=True)
     p.add_argument('--inner-folds',type=int,default=5);p.add_argument('--seed',type=int,default=20261006)
     p.add_argument('--alphas',type=float,nargs='+',default=DEFAULT_ALPHAS.tolist())
-    p.add_argument('--training-mode',choices=['group','subject'],default='group')
+    p.add_argument('--training-mode',choices=['group','subject','residual'],default='group')
     a=p.parse_args();run(a.manifest,a.lut,a.out,a.alphas,a.inner_folds,a.seed,a.training_mode)
     print(f'Results saved to {a.out}')
 
