@@ -1,0 +1,48 @@
+{
+  "batches": {
+    "main": {
+      "ids": {
+        "path": "mwc/main/3_subjects_retained.mat",
+        "key": "Ss"
+      },
+      "caliber": {
+        "path": "mwc/main/caliber.mat",
+        "key": "Dts"
+      },
+      "length": {
+        "path": "mwc/main/edgeLength.mat",
+        "key": "Dts"
+      },
+      "myelin": {
+        "path": "mwc/main/R1-tm.mat",
+        "key": "Dts"
+      },
+      "FC": {
+        "path": "mwc/main/FC.mat",
+        "key": "Dts"
+      }
+    },
+    "holdout": {
+      "ids": {
+        "path": "mwc/holdout/3_subjects_holdouts.mat",
+        "key": "Ss_ho"
+      },
+      "caliber": {
+        "path": "mwc/holdout/caliber.mat",
+        "key": "Dts"
+      },
+      "length": {
+        "path": "mwc/holdout/edgeLength.mat",
+        "key": "Dts"
+      },
+      "myelin": {
+        "path": "mwc/holdout/R1-tm.mat",
+        "key": "Dts"
+      },
+      "FC": {
+        "path": "mwc/holdout/FC.mat",
+        "key": "Dts"
+      }
+    }
+  }
+}

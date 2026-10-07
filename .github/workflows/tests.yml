@@ -15,3 +15,16 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - run: python -m pip install -e ".[dev]"
       - run: python -m pytest -q
+      - name: Run installed synthetic demo
+        run: myelin-fc-demo --all-models --out out/ci-demo
+        env:
+          OPENBLAS_NUM_THREADS: "1"
+      - name: Upload synthetic demo summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: synthetic-demo-${{ matrix.python-version }}
+          path: |
+            out/ci-demo/summary.csv
+            out/ci-demo/benchmark/summary.csv
+            out/ci-demo/DEMO_REPORT.md
+          retention-days: 7

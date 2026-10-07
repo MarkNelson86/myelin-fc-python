@@ -1,0 +1,11 @@
+{
+  "batches": {
+    "main": {
+      "ids": {"path": "mics/subjects.mat", "key": "Ss"},
+      "caliber": {"path": "mics/caliber.mat", "key": "Dts"},
+      "myelin": {"path": "mics/R1.mat", "key": "Dts"},
+      "length": {"path": "mics/edgeLength.mat", "key": "Dts"},
+      "FC": {"path": "mics/FC.mat", "key": "Dts"}
+    }
+  }
+}
