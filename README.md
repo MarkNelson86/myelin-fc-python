@@ -1,6 +1,46 @@
 # Myelin–FC coupling in Python
 
-Fit functional connectivity (FC) from tract caliber, myelin, and tract length. Run models across all edges, network pairs, or individual nodes, then export coefficients, R², p-values, and interaction-aware contribution metrics to CSV.
+A reproducible Python pipeline for predicting functional connectivity from
+structural connectomes. It combines data validation, participant-aware model
+selection, OLS/Ridge comparisons, and auditable CSV outputs. The neuroscience
+case study illustrates predictive modeling with many dependent observations
+and relatively few independent participants.
+
+## Try the synthetic subject demo
+
+Python 3.10 or newer; from the repository root:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e ".[ml]"
+myelin-fc-demo --out out/demo
+```
+
+The demo requires no downloads or participant data. It generates 24-node
+connectomes for ten synthetic people, including paired sessions for two held-out
+people, and runs three inner participant folds for Ridge selection. It writes
+`summary.csv`, `DEMO_REPORT.md`, subject audits, fold exclusions, and a `models/`
+folder containing predictions, coefficients, scaling, selected alphas, input
+hashes and run configuration. A nonempty output folder is rejected; choose a
+new `--out` path for another run. Use `--seed` to generate a different fixture.
+Demo metrics illustrate the workflow and carry no scientific interpretation.
+
+## What the project demonstrates
+
+| Capability | Implementation |
+|---|---|
+| Reusable Python software | Installable package, CLI commands, modular loaders and models |
+| Data contracts | Explicit file/variable mappings, matrix shape and symmetry checks, identity validation |
+| Leakage control | Every session of a held-out participant excluded; nested participant folds; training-only preprocessing |
+| Model evaluation | OLS, Ridge and empirical FC template compared on common eligible edges |
+| Reproducibility | Deterministic fixture generation, explicit seeds, saved configurations and SHA-256 input hashes |
+| Automated checks | Unit and integration tests; CI configured for Python 3.10 and 3.12 |
+
+See [engineering notes](docs/engineering.md) for design decisions, limitations,
+and the portfolio development roadmap. The group-regression workflow and
+subject-data analyses are documented below. Private participant data belongs
+in the ignored `data/subjects/` directory; generated runs belong in `out/`.
 
 ## 1. Install
 
