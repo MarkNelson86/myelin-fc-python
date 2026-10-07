@@ -22,6 +22,10 @@ Open `out/demo/benchmark/summary.csv` and `out/demo/DEMO_REPORT.md`. Synthetic
 scores demonstrate execution, not scientific performance. Choose a fresh output
 directory for each run.
 
+Preview the [all-model demo results](examples/demo-results/benchmark/summary.csv)
+and [demo report](examples/demo-results/DEMO_REPORT.md) without installing the
+package. These outputs use synthetic data and demonstrate the workflow only.
+
 ## Engineering highlights
 
 | Concern | Implementation |
