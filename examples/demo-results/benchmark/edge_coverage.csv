@@ -1,0 +1,4 @@
+run,input_edges,common_edges,retained_fraction
+linear,2338,2338,1.0
+boosting,2338,2338,1.0
+neural,2338,2338,1.0
