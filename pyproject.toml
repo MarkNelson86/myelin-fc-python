@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "myelinfccoupling"
-version = "0.3.0"
+version = "0.4.0"
 description = "Python regression and interaction-aware contribution analysis for myelin–FC coupling"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -14,7 +14,8 @@ authors = [{name = "Mark C Nelson"}]
 dependencies = ["numpy>=1.24,<3", "pandas>=2.0,<4", "statsmodels>=0.14,<0.15", "scipy>=1.11,<2", "click>=8.0,<9"]
 
 [project.optional-dependencies]
-dev = ["pytest>=8,<10", "build>=1,<2"]
+dev = ["pytest>=8,<10", "build>=1,<2", "scikit-learn>=1.4,<2"]
+ml = ["scikit-learn>=1.4,<2"]
 
 [project.scripts]
 myelin-fc-run = "myelinfccoupling.cli:main"

@@ -220,3 +220,42 @@ This baseline intentionally differs from the original MATLAB script: it does
 not automatically log-transform skewed stacks, does not z-score test FC, and
 uses training-fitted predictor scaling and fold-specific masks. It therefore
 must not be described as exact replication of Figure 6.
+
+## Nested Ridge comparison
+
+```bash
+python -m pip install -e ".[ml]"
+python -m myelinfccoupling.ridge \
+  --manifest data/subjects/subject-data/mwc-MTsat-tm.json \
+  --lut data/subjects/subject-data/parcellations/lut/lut_schaefer-400_mics.csv \
+  --out out/ridge/MTsat
+```
+
+Each outer fold excludes one holdout participant from the main stack. Five inner
+folds split unique training participants, rebuilding group means, masks, scaling
+and models inside each fold. Ridge alpha is selected by mean participant RMSE;
+sessions of a person stay together. The default eleven positive alpha candidates
+span 10^-4 to 10^6. A single alpha is shared across network pairs per outer fold.
+Main predictors and the five-term interaction design are scaled using training
+statistics only. The intercept is unpenalized. Ridge uses cached linear-system
+solutions equivalent to scikit-learn's Ridge sum-of-squares objective, tested
+against that estimator. OLS, Ridge and the training FC template use the same
+eligible edges and block gates. No edge-permutation tuning is used.
+
+Results include metrics.csv, selected_alpha.csv, inner_scores.csv,
+fold_assignments.csv (scan_index is zero-based in the main stack), coefficients,
+scaling, model status, predictions, input hashes and run configuration. Inspect
+the `all` rows in metrics.csv; averages over sessions should first be reduced to
+participant-level summaries before inference. Runs are exploratory: earlier
+holdout baseline outcomes have already been inspected.
+
+Use `--inner-folds` and `--alphas` only for a predefined development experiment;
+do not repeatedly pick settings by outer holdout scores. Change the output
+folder for each configuration. This implementation trains on group-average
+edges; training directly on participant-edge rows is a subsequent extension.
+
+The preprocessing module translates the supplied MATLAB helpers for reference
+work. It is not applied in the raw-data Ridge baseline. Exact MATLAB runtime
+agreement and full historical Figure 6 reproduction remain unverified. The
+positive-real log translation uses an omit-NaN minimum for shifting; negative
+inputs are rejected rather than producing MATLAB complex values.
